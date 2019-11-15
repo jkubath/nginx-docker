@@ -5,57 +5,160 @@ FROM buildpack-deps:stretch
 
 LABEL maintainer="Jonah https://github.com/jkubath"
 
-# Versions of Nginx and nginx-rtmp-module to use
-ENV NGINX_VERSION nginx-1.17.5
-ENV NGINX_RTMP_MODULE_VERSION 1.2.1
+ARG NGINX_VERSION=1.17.5
+ARG NGINX_RTMP_VERSION=1.2.1
+ARG FFMPEG_VERSION=4.2.1
 
-# Install dependencies
-RUN apt-get update && \
-    apt-get install -y ca-certificates openssl libssl-dev && \
-    rm -rf /var/lib/apt/lists/*
 
-# Download and decompress Nginx
-RUN mkdir -p /tmp/build/nginx && \
-    cd /tmp/build/nginx && \
-    wget -O ${NGINX_VERSION}.tar.gz https://nginx.org/download/${NGINX_VERSION}.tar.gz && \
-    tar -zxf ${NGINX_VERSION}.tar.gz
+##############################
+# Build the NGINX-build image.
+FROM alpine:3.8 as build-nginx
+ARG NGINX_VERSION
+ARG NGINX_RTMP_VERSION
 
-# Download and decompress RTMP module
-RUN mkdir -p /tmp/build/nginx-rtmp-module && \
-    cd /tmp/build/nginx-rtmp-module && \
-    wget -O nginx-rtmp-module-${NGINX_RTMP_MODULE_VERSION}.tar.gz https://github.com/arut/nginx-rtmp-module/archive/v${NGINX_RTMP_MODULE_VERSION}.tar.gz && \
-    tar -zxf nginx-rtmp-module-${NGINX_RTMP_MODULE_VERSION}.tar.gz && \
-    cd nginx-rtmp-module-${NGINX_RTMP_MODULE_VERSION}
+# Build dependencies.
+RUN apk add --update \
+  build-base \
+  ca-certificates \
+  curl \
+  gcc \
+  libc-dev \
+  libgcc \
+  linux-headers \
+  make \
+  musl-dev \
+  openssl \
+  openssl-dev \
+  pcre \
+  pcre-dev \
+  pkgconf \
+  pkgconfig \
+  zlib-dev
 
-# Build and install Nginx
-# The default puts everything under /usr/local/nginx, so it's needed to change
-# it explicitly. Not just for order but to have it in the PATH
-RUN cd /tmp/build/nginx/${NGINX_VERSION} && \
-    ./configure \
-        --sbin-path=/usr/local/sbin/nginx \
-        --conf-path=/etc/nginx/nginx.conf \
-        --error-log-path=/var/log/nginx/error.log \
-        --pid-path=/var/run/nginx/nginx.pid \
-        --lock-path=/var/lock/nginx/nginx.lock \
-        --http-log-path=/var/log/nginx/access.log \
-        --http-client-body-temp-path=/tmp/nginx-client-body \
-        --with-http_ssl_module \
-        --with-threads \
-        --with-ipv6 \
-        --add-module=/tmp/build/nginx-rtmp-module/nginx-rtmp-module-${NGINX_RTMP_MODULE_VERSION} && \
-    make -j $(getconf _NPROCESSORS_ONLN) && \
-    make install && \
-    mkdir /var/lock/nginx && \
-    rm -rf /tmp/build
+# Get nginx source.
+RUN cd /tmp && \
+  wget https://nginx.org/download/nginx-${NGINX_VERSION}.tar.gz && \
+  tar zxf nginx-${NGINX_VERSION}.tar.gz && \
+  rm nginx-${NGINX_VERSION}.tar.gz
 
-# Forward logs to Docker
-RUN ln -sf /dev/stdout /var/log/nginx/access.log && \
-    ln -sf /dev/stderr /var/log/nginx/error.log
+# Get nginx-rtmp module.
+RUN cd /tmp && \
+  wget https://github.com/arut/nginx-rtmp-module/archive/v${NGINX_RTMP_VERSION}.tar.gz && \
+  tar zxf v${NGINX_RTMP_VERSION}.tar.gz && rm v${NGINX_RTMP_VERSION}.tar.gz
 
-# Set up config file
-COPY nginx.conf /etc/nginx/nginx.conf
+# Compile nginx with nginx-rtmp module.
+RUN cd /tmp/nginx-${NGINX_VERSION} && \
+  ./configure \
+  --prefix=/usr/local/nginx \
+  --add-module=/tmp/nginx-rtmp-module-${NGINX_RTMP_VERSION} \
+  --conf-path=/etc/nginx/nginx.conf \
+  --with-threads \
+  --with-file-aio \
+  --with-http_ssl_module \
+  --with-debug && \
+  cd /tmp/nginx-${NGINX_VERSION} && make && make install
 
-EXPOSE 8080
-EXPOSE 80
+###############################
+# Build the FFmpeg-build image.
+FROM alpine:3.8 as build-ffmpeg
+ARG FFMPEG_VERSION
+ARG PREFIX=/usr/local
+ARG MAKEFLAGS="-j4"
+
+# FFmpeg build dependencies.
+RUN apk add --update \
+  build-base \
+  coreutils \
+  freetype-dev \
+  lame-dev \
+  libogg-dev \
+  libass \
+  libass-dev \
+  libvpx-dev \
+  libvorbis-dev \
+  libwebp-dev \
+  libtheora-dev \
+  opus-dev \
+  pkgconf \
+  pkgconfig \
+  rtmpdump-dev \
+  wget \
+  x264-dev \
+  x265-dev \
+  yasm
+
+RUN echo http://dl-cdn.alpinelinux.org/alpine/edge/testing >> /etc/apk/repositories
+RUN apk add --update fdk-aac-dev
+
+# Get FFmpeg source.
+RUN cd /tmp/ && \
+  wget http://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.gz && \
+  tar zxf ffmpeg-${FFMPEG_VERSION}.tar.gz && rm ffmpeg-${FFMPEG_VERSION}.tar.gz
+
+# Compile ffmpeg.
+RUN cd /tmp/ffmpeg-${FFMPEG_VERSION} && \
+  ./configure \
+  --prefix=${PREFIX} \
+  --enable-version3 \
+  --enable-gpl \
+  --enable-nonfree \
+  --enable-small \
+  --enable-libmp3lame \
+  --enable-libx264 \
+  --enable-libx265 \
+  --enable-libvpx \
+  --enable-libtheora \
+  --enable-libvorbis \
+  --enable-libopus \
+  --enable-libfdk-aac \
+  --enable-libass \
+  --enable-libwebp \
+  --enable-librtmp \
+  --enable-postproc \
+  --enable-avresample \
+  --enable-libfreetype \
+  --enable-openssl \
+  --disable-debug \
+  --disable-doc \
+  --disable-ffplay \
+  --extra-libs="-lpthread -lm" && \
+  make && make install && make distclean
+
+# Cleanup.
+RUN rm -rf /var/cache/* /tmp/*
+
+##########################
+# Build the release image.
+FROM alpine:3.8
+LABEL MAINTAINER Alfred Gutierrez <alf.g.jr@gmail.com>
+
+RUN apk add --update \
+  ca-certificates \
+  openssl \
+  pcre \
+  lame \
+  libogg \
+  libass \
+  libvpx \
+  libvorbis \
+  libwebp \
+  libtheora \
+  opus \
+  rtmpdump \
+  x264-dev \
+  x265-dev
+
+COPY --from=build-nginx /usr/local/nginx /usr/local/nginx
+COPY --from=build-ffmpeg /usr/local /usr/local
+COPY --from=build-ffmpeg /usr/lib/libfdk-aac.so.2 /usr/lib/libfdk-aac.so.2
+
+# Add NGINX path, config and static files.
+ENV PATH "${PATH}:/usr/local/nginx/sbin"
+ADD nginx.conf /etc/nginx/nginx.conf
+RUN mkdir -p /opt/data && mkdir /www
+ADD static /www/static
+
 EXPOSE 1935
-CMD ["nginx", "-g", "daemon off;"]
+EXPOSE 80
+
+CMD ["nginx"]
