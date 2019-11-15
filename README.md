@@ -1,4 +1,4 @@
-# nginx-docker-master
+# nginx-docker
 Dockerfile for nginx-rtmp-master
 
 This Dockerfile and nginx.conf can be used to setup a docker container
