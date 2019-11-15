@@ -1,7 +1,5 @@
 # Original dockerfile from:
-# https://github.com/tiangolo/nginx-rtmp-docker/blob/master/Dockerfile
-
-FROM buildpack-deps:stretch
+# https://github.com/alfg/docker-nginx-rtmp/blob/master/Dockerfile
 
 LABEL maintainer="Jonah https://github.com/jkubath"
 
