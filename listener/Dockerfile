@@ -1,11 +1,7 @@
 # Original dockerfile from:
 # https://github.com/tiangolo/nginx-rtmp-docker/blob/master/Dockerfile
 
-FROM buildpack-deps:stretch
-
-LABEL maintainer="Jonah https://github.com/jkubath"
-
-ARG NGINX_VERSION=1.17.5
+ARG NGINX_VERSION=1.16.1
 ARG NGINX_RTMP_VERSION=1.2.1
 ARG FFMPEG_VERSION=4.2.1
 
@@ -130,6 +126,7 @@ RUN rm -rf /var/cache/* /tmp/*
 ##########################
 # Build the release image.
 FROM alpine:3.8
+LABEL MAINTAINER Alfred Gutierrez <alf.g.jr@gmail.com>
 
 RUN apk add --update \
   ca-certificates \
