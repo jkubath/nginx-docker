@@ -126,7 +126,7 @@ RUN rm -rf /var/cache/* /tmp/*
 ##########################
 # Build the release image.
 FROM alpine:3.8
-LABEL MAINTAINER Jonah <https://github.com/jkubath>
+LABEL MAINTAINER Jonah
 
 RUN apk add --update \
   ca-certificates \
@@ -157,3 +157,5 @@ EXPOSE 1935
 EXPOSE 80
 
 CMD ["nginx"]
+
+
