@@ -1,5 +1,5 @@
 # Original dockerfile from:
-# https://github.com/tiangolo/nginx-rtmp-docker/blob/master/Dockerfile
+# https://github.com/alfg/docker-nginx-rtmp
 
 ARG NGINX_VERSION=1.16.1
 ARG NGINX_RTMP_VERSION=1.2.1
