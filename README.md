@@ -10,13 +10,13 @@ In the nginx config file $stream_name = "audio"
 To stream to the server:
   rtmp://$stream_name:1935/stream/$stream_name
   
-  Sample command: ffmpeg -i - -ab 32k -ac 1 -f flv rtmp://3.92.27.179:1935/stream/$stream_name
+  Sample command: ffmpeg -i - -ab 32k -ac 1 -f flv rtmp://$SERVER_IP:1935/stream/$stream_name
   
 To listen to the stream:
   In a browser:
-    http://<server ip>:8080/live/$stream_name.m3u8
+    http://$SERVER_IP:8080/live/$stream_name.m3u8
   
   In VLC or other rtmp applications:
-    rtmp://<server ip>:1935/stream/$stream_name
+    rtmp://$SERVER_IP:1935/stream/$stream_name
 
 
