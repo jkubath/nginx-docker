@@ -19,4 +19,4 @@ To listen to the stream:
   In VLC or other rtmp applications:
     rtmp://$SERVER_IP:1935/stream/$stream_name
 
-
+Reference: https://github.com/alfg/docker-nginx-rtmp
