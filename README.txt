@@ -88,7 +88,7 @@ sudo docker stop <container id>
 rtmp://<master ip>:1935/stream/<stream name>
 
 -- listen in browser --
-http://<listener ip>:8080/live/<stream name>
+http://<listener ip>:8080/live/<stream name>.m3u8
 
 -- view stream stats --
 http://<listener ip>:8080/stat
@@ -123,6 +123,9 @@ Max - 3
 Set the default region (I used us-east-1d)
 
 Target Group - select your target group created in the Load balancer
+
+	-- Listen in browser --
+	http://<load balancer address>:8080/stream/audio.m3u8
 
 
 
