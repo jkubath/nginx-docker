@@ -1,0 +1,137 @@
+**
+** In general, I would follow the sources linked in the README.txt to
+** setup the raspberry pi.  If you want to check, I listed the commands
+** that I ran.
+**
+
+
+Create a bootable raspberry pi image
+	Windows: https://howtoraspberrypi.com/create-raspbian-sd-card-raspberry-pi-windows/
+	I am on Mac and used "balena etcher" to copy the raspian.iso and make a micros
+	SD card bootable for the Pi
+
+Enable ssh on raspberry pi
+	In the root boot folder, create a file named: "SSH"
+
+connect raspberry pi to usb power and ethernet port
+
+ssh pi@raspberrypi.local
+	Default username: pi
+	Default password: raspberry
+
+Share internet to pi or connect pi to wifi
+	Connect to wifi: https://www.raspberrypi.org/documentation/configuration/wireless/wireless-cli.md
+
+sudo apt-get install bluez pulseaudio-module-bluetooth python-gobject python-gobject-2
+
+sudo usermod -a -G lp pi
+
+sudo nano /etc/bluetooth/input.conf
+
+	-Paste in the general section
+		Enable=Source,Sink,Media,Socket
+
+sudo nano /etc/pulse/daemon.conf
+
+	-Change the setting
+		resample-method = trivial
+
+sudo reboot
+
+Run
+	~$ bluetoothctl
+
+While bluetoothctl is running:
+	[bluetooth]# trust <MAC address of phone>
+
+Connect the source to the sink thanks to the loopback module
+	pactl load-module module-loopback source=bluez_source.<phone bluetooth id>.a2dp_source sink=alsa_output.platform-soc_audio.analog-mono
+
+
+amixer cset numid=3 1
+
+--Setup bluetooth to connect automatically on startup--
+	https://www.raspberrypi.org/forums/viewtopic.php?t=156120
+
+	In their zeal to discourage anyone from running Pulseaudio in system mode, the Pulseaudio maintainers do not ship any startup script in the distribution packages – this ensures that users who don’t know what they are doing don’t stray off the beaten path of orthodox desktop usage and end up on a forum complaining that Pulseaudio doesn’t work. But it also annoys the other users, who actually need Pulseaudio to run at system startup – but that is easily fixable thanks to another creation of Lennart’s gang: all we need is a single file called a systemd unit… I copied one from this guy who also plays with Pulseaudio network streaming (but in a different way – more on that later). This systemd unit was written for Fedora, but it works just as well for Raspbian… 
+
+	Copy this and paste it in /etc/systemd/system/pulseaudio.service :
+	
+	[Unit]
+	Description=PulseAudio Daemon
+
+	[Install]
+	WantedBy=multi-user.target
+
+	[Service]
+	Type=simple
+	PrivateTmp=true
+	ExecStart=/usr/bin/pulseaudio --system --realtime --disallow-exit --no-cpu-limit
+
+	Then ‘systemctl enable pulseaudio’ and ‘systemctl start pulseaudio' - Authenticate as #1 (pi user) and enter password
+
+	– you now have a properly set up Pulseaudio daemon.
+
+--Done with automatic bluetooth config
+
+
+mkdir /home/pi/pulseAudioBluetooth
+
+nano /home/pi/pulseAudioBluetooth/checkForBluetoothDevice.sh
+
+		#!/bin/bash
+
+		#This script looks for a bluetooth audio source and launch the pulse audio loopback module if necessary
+
+		#log traces :
+		#date=$(date "+%Hh%Mm%Ss")
+		#echo "Script Exec "$date
+
+		bluetoothSource=$(pactl list sources short | grep bluez_source)
+
+		read loopbackStatus < /home/pi/pulseAudioBluetooth/bluetoothLoopbackStatus.txt
+
+		if [[ $bluetoothSource != "" ]] && [[ $loopbackStatus == "0" ]]
+		then
+			source=${bluetoothSource:2:30}
+			pactl load-module module-loopback source=$source sink=alsa_output.platform-soc_audio.analog-mono.monitor
+			echo "1" > /home/pi/pulseAudioBluetooth/bluetoothLoopbackStatus.txt
+			#echo "command launched"
+
+		else
+			if [[ $bluetoothSource == "" ]] && [[ $loopbackStatus == "1" ]]
+			then
+				echo "0" > /home/pi/pulseAudioBluetooth/bluetoothLoopbackStatus.txt
+				#echo "reset loopbackStatus"
+			fi
+		fi
+
+sudo chmod u+x /home/pi/pulseAudioBluetooth/checkForBluetoothDevice.sh
+
+echo 0 > /home/pi/pulseAudioBluetooth/bluetoothLoopbackStatus.txt
+
+crontab -e
+
+	# automatically load loopback for new bluetooth devices (check every minute)
+	* * * * * /home/pi/pulseAudioBluetooth/checkForBluetoothDevice.sh  >> /home/pi/pulseAudioBluetooth/cron.log 2>&1
+
+
+bluetoothctl pairable on
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
